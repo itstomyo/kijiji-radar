@@ -1,16 +1,17 @@
 const express = require("express");
+const axios = require("axios");
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// -------------------- SERVER --------------------
 app.get("/", (req, res) => {
   res.send("Kijiji radar running");
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🌐 Server running on port ${PORT}`);
 });
-
-const axios = require("axios");
 
 // -------------------- CONFIG --------------------
 const KEYWORDS = [
@@ -40,7 +41,6 @@ function isNew(listing) {
 
   seen.add(listing.link);
 
-  // prevent memory growth
   if (seen.size > MAX_SEEN) {
     const first = seen.values().next().value;
     seen.delete(first);
@@ -120,10 +120,20 @@ async function run() {
   });
 }
 
-// -------------------- START LOOP (24/7 SAFE) --------------------
+// -------------------- LOOP --------------------
 async function loop() {
-  await run();
+  console.log("🚀 LOOP STARTED");
+
+  try {
+    await run();
+  } catch (err) {
+    console.error("Loop error:", err.message);
+  }
+
   setTimeout(loop, 5 * 60 * 1000);
 }
 
-loop();
+// -------------------- START --------------------
+setTimeout(() => {
+  loop();
+}, 3000);
