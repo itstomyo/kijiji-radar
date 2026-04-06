@@ -15,6 +15,7 @@ const URL =
 
 // -------------------- MEMORY --------------------
 const seen = new Set();
+const MAX_SEEN = 200;
 
 // -------------------- HELPERS --------------------
 function matchesKeywords(text = "") {
@@ -24,7 +25,15 @@ function matchesKeywords(text = "") {
 
 function isNew(listing) {
   if (seen.has(listing.link)) return false;
+
   seen.add(listing.link);
+
+  // prevent memory growth
+  if (seen.size > MAX_SEEN) {
+    const first = seen.values().next().value;
+    seen.delete(first);
+  }
+
   return true;
 }
 
@@ -32,13 +41,13 @@ function isNew(listing) {
 async function fetchListings() {
   try {
     const { data } = await axios.get(URL, {
+      timeout: 10000,
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "en-CA,en;q=0.9"
       }
     });
 
-    // 🔥 Extract structured JSON-LD from Kijiji page
     const jsonMatch = data.match(
       /<script type="application\/ld\+json">(.*?)<\/script>/s
     );
@@ -49,7 +58,6 @@ async function fetchListings() {
     }
 
     const json = JSON.parse(jsonMatch[1]);
-
     const items = json?.itemListElement || [];
 
     console.log(`RAW ITEMS FOUND: ${items.length}`);
@@ -80,9 +88,9 @@ async function fetchListings() {
   }
 }
 
-// -------------------- RUN LOOP --------------------
+// -------------------- RUN --------------------
 async function run() {
-  console.log("\n🔎 Checking Kijiji...\n");
+  console.log(`\n[${new Date().toISOString()}] 🔎 Checking Kijiji...\n`);
 
   const listings = await fetchListings();
 
@@ -100,6 +108,10 @@ async function run() {
   });
 }
 
-// -------------------- START --------------------
-run();
-setInterval(run, 5 * 60 * 1000);
+// -------------------- START LOOP (24/7 SAFE) --------------------
+async function loop() {
+  await run();
+  setTimeout(loop, 5 * 60 * 1000);
+}
+
+loop();
