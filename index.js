@@ -1,0 +1,105 @@
+const axios = require("axios");
+
+// -------------------- CONFIG --------------------
+const KEYWORDS = [
+  "powerblock",
+  "power block",
+  "adjustable dumbbell",
+  "kitchenaid",
+  "kitchen aid",
+  "stand mixer"
+];
+
+const URL =
+  "https://www.kijiji.ca/b-buy-sell/oakville-halton-region/dumbbells/k0c10l1700277?address=1119%20Privet%20Pl%2C%20Oakville%2C%20ON%2C%20Canada&ll=43.499163%2C-79.652515&radius=13.0&view=list";
+
+// -------------------- MEMORY --------------------
+const seen = new Set();
+
+// -------------------- HELPERS --------------------
+function matchesKeywords(text = "") {
+  const lower = text.toLowerCase();
+  return KEYWORDS.some((k) => lower.includes(k));
+}
+
+function isNew(listing) {
+  if (seen.has(listing.link)) return false;
+  seen.add(listing.link);
+  return true;
+}
+
+// -------------------- SCRAPER --------------------
+async function fetchListings() {
+  try {
+    const { data } = await axios.get(URL, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+      }
+    });
+
+    // 🔥 Extract structured JSON-LD from Kijiji page
+    const jsonMatch = data.match(
+      /<script type="application\/ld\+json">(.*?)<\/script>/s
+    );
+
+    if (!jsonMatch) {
+      console.log("❌ No structured data found");
+      return [];
+    }
+
+    const json = JSON.parse(jsonMatch[1]);
+
+    const items = json?.itemListElement || [];
+
+    console.log(`RAW ITEMS FOUND: ${items.length}`);
+
+    const listings = [];
+
+    for (const item of items) {
+      const product = item?.item;
+      if (!product) continue;
+
+      const listing = {
+        title: product.name,
+        price: product.offers?.price
+          ? `$${product.offers.price}`
+          : "N/A",
+        link: product.url
+      };
+
+      if (matchesKeywords(listing.title) && isNew(listing)) {
+        listings.push(listing);
+      }
+    }
+
+    return listings;
+  } catch (err) {
+    console.error("❌ Scraper error:", err.message);
+    return [];
+  }
+}
+
+// -------------------- RUN LOOP --------------------
+async function run() {
+  console.log("\n🔎 Checking Kijiji...\n");
+
+  const listings = await fetchListings();
+
+  if (listings.length === 0) {
+    console.log("No new matches right now.");
+    return;
+  }
+
+  console.log(`🔥 FOUND ${listings.length} MATCH(ES):\n`);
+
+  listings.forEach((item, i) => {
+    console.log(`${i + 1}. ${item.title}`);
+    console.log(`   💰 ${item.price}`);
+    console.log(`   🔗 ${item.link}\n`);
+  });
+}
+
+// -------------------- START --------------------
+run();
+setInterval(run, 5 * 60 * 1000);
